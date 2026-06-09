@@ -1,0 +1,67 @@
+﻿# user
+"C:\Users\Public"
+"%USERPROFILE%\.openjfx"
+"%USERPROFILE%\temp"
+"%USERPROFILE%\ansel"
+"%USERPROFILE%\Documents"
+
+# 360
+"%LOCALAPPDATA%\LocalLow\360MenuMgr"
+"%LOCALAPPDATA%\360Safe"
+"%APPDATA%\360Login"
+"%APPDATA%\360Quarant"
+"%APPDATA%\360Login"
+"%APPDATA%\360Preview"
+"%APPDATA%\360Safe"
+"%APPDATA%\secoresdk"
+
+# Adobe
+"%APPDATA%\com.adobe.dunamis"
+"%APPDATA%\Adobe"
+
+# 百度网盘
+"%APPDATA%\BaiduNetdisk"
+"%APPDATA%\baidu"
+"%APPDATA%\BaiduYunGuanjia"
+
+# Discord
+"%APPDATA%\discord"
+
+# Epic
+"%LOCALAPPDATA%\CrashReportClient"
+
+# Follow
+"%APPDATA%\com.follow"
+
+# Java
+
+# PotPlayer
+"%APPDATA%\Daum"
+
+# QQ
+"%APPDATA%\qqgameshare"
+
+# 夸克(卸载可用)
+"%LOCALAPPDATA%\QuarkCloudDrive\User Data\updates"
+"%APPDATA%\QuarkCloudDrive"
+"%APPDATA%\Quark"
+"%APPDATA%\quark-cloud-drive"
+
+# 天翼网盘
+"%APPDATA%\eCloudUpgrade"
+
+# 2K游戏厂商
+"%APPDATA%\FiraxisLive"
+"%APPDATA%\T2GP Launcher"
+
+# 企业微信
+"%APPDATA%\WXDrive"
+
+# cleanTrash
+"%APPDATA%\CleanTrash"
+
+# ContextMenuManager
+"%APPDATA%\ContextMenuManager"
+
+# VSCode(卸载可用)
+"%USERPROFILE%\.vscode"

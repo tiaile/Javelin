@@ -1,0 +1,23 @@
+﻿# Local
+"%LOCALAPPDATA%\AssetStudio.GUI"
+"%LOCALAPPDATA%\BYCOMBO4"
+"%LOCALAPPDATA%\adrive-desktop-updater"
+"%LOCALAPPDATA%\BetterDiscord"
+"%LOCALAPPDATA%\BtLog"
+"%LOCALAPPDATA%\bvschaik"
+"%LOCALAPPDATA%\Cache"
+"%LOCALAPPDATA%\com.switch.prod"
+"%LOCALAPPDATA%\CrashDumps"
+"%LOCALAPPDATA%\calibre-cache"
+"%LOCALAPPDATA%\downloader"
+"%LOCALAPPDATA%\FFNSGManager"
+"%LOCALAPPDATA%\WPFLauncher"
+"%LOCALAPPDATA%\FLiNGTrainer"
+"%LOCALAPPDATA%\x"
+"%LOCALAPPDATA%\THEMIS"
+"%LOCALAPPDATA%\TDM"
+"%LOCALAPPDATA%\.kimi"
+"%LOCALAPPDATA%\authorwrite-updater"
+
+# Chrome(卸载可用)
+"%LOCALAPPDATA%\Google"

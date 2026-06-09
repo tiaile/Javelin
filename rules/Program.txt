@@ -1,0 +1,32 @@
+﻿# ProgramData
+"%PROGRAMDATA%\Alibaba"
+"%PROGRAMDATA%\Caphyon"
+"%PROGRAMDATA%\deepscan"
+"%PROGRAMDATA%\OEM Links"
+"%PROGRAMDATA%\ProductData"
+"%PROGRAMDATA%\regid.1986-12.com.adobe"
+"%PROGRAMDATA%\regid.1991-06.com.microsoft"
+"%PROGRAMDATA%\tianxiang"
+"%PROGRAMDATA%\TRAEBridgeElevator"
+"%PROGRAMDATA%\Ubisoft"
+"%PROGRAMDATA%\xfolder"
+"%PROGRAMDATA%\pHqGhUmEaYlNlFdX"
+
+# 360
+"C:\ProgramData\360SD"
+"C:\ProgramData\360safe"
+
+# chrome(卸载可用)
+"C:\Program Files (x86)\Google"
+
+# 神话时代
+"%PROGRAMDATA%\Age of Mythology Retold"
+
+# NVIDIA
+"%PROGRAMDATA%\NVIDIA Corporation\NVIDIA app\UpdateFramework\ota-artifacts"
+
+# Localsend
+"%APPDATA%\org.localsend"
+
+# Edge(缓存;慎用)
+"%PROGRAMFILES(X86)%\Microsoft\EdgeUpdate\Download"

@@ -1,0 +1,5 @@
+﻿# Temp
+"%SystemRoot%\Temp"
+
+# 其他
+C:\XboxGames
