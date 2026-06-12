@@ -1,0 +1,7 @@
+﻿# 百度网盘
+"%APPDATA%\BaiduNetdisk"
+"%APPDATA%\baidu"
+"%APPDATA%\BaiduYunGuanjia"
+
+# Discord
+"%APPDATA%\discord"

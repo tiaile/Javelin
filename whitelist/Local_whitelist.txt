@@ -1,0 +1,2 @@
+﻿# Chrome(卸载可用)
+"%LOCALAPPDATA%\Google"
