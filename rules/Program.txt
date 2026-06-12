@@ -16,9 +16,6 @@
 "C:\ProgramData\360SD"
 "C:\ProgramData\360safe"
 
-# chrome(卸载可用)
-"C:\Program Files (x86)\Google"
-
 # 神话时代
 "%PROGRAMDATA%\Age of Mythology Retold"
 
@@ -28,5 +25,11 @@
 # Localsend
 "%APPDATA%\org.localsend"
 
-# Edge(缓存;慎用)
-"%PROGRAMFILES(X86)%\Microsoft\EdgeUpdate\Download"
+# Adobe
+"%PROGRAMDATA%\AppData\Roaming\Adobe"
+
+# 右键管理工具
+"C:\ProgramData\ContextMenuMgr"
+
+# geek
+"C:\Users\Administrator\AppData\Roaming\Geek Uninstaller"

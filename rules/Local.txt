@@ -2,7 +2,6 @@
 "%LOCALAPPDATA%\AssetStudio.GUI"
 "%LOCALAPPDATA%\BYCOMBO4"
 "%LOCALAPPDATA%\adrive-desktop-updater"
-"%LOCALAPPDATA%\BetterDiscord"
 "%LOCALAPPDATA%\BtLog"
 "%LOCALAPPDATA%\bvschaik"
 "%LOCALAPPDATA%\Cache"
@@ -18,6 +17,12 @@
 "%LOCALAPPDATA%\TDM"
 "%LOCALAPPDATA%\.kimi"
 "%LOCALAPPDATA%\authorwrite-updater"
+"%LOCALAPPDATA%\PlaceholderTileLogoFolder"
+"%LOCALAPPDATA%\PeerDistRepub"
+"%LOCALAPPDATA%\tdappdesktop"
 
-# Chrome(卸载可用)
-"%LOCALAPPDATA%\Google"
+# 黑神话悟空
+”%localappdata%\b1“
+
+# Discord
+"%LOCALAPPDATA%\BetterDiscord"
