@@ -1,0 +1,21 @@
+清理日志 - 周五 2026/06/12 20:08:02.43
+========================
+正在读取规则文件：Local.txt 
+成功清理路径：C:\Users\Administrator\AppData\Local\CrashDumps 
+成功清理路径：C:\Users\Administrator\AppData\Local\PlaceholderTileLogoFolder 
+成功清理路径：C:\Users\Administrator\AppData\Local\PeerDistRepub 
+成功清理路径：C:\Users\Administrator\AppData\Local\tdappdesktop 
+成功清理路径：C:\Users\Administrator\AppData\Local\Google 
+成功清理路径：C:\Users\Administrator\AppData\Local\b1 
+正在读取规则文件：Program.txt 
+成功清理路径：C:\ProgramData\regid.1991-06.com.microsoft 
+成功清理路径：C:\ProgramData\xfolder 
+成功清理路径：C:\Program Files (x86)\Google 
+成功清理路径：C:\ProgramData\NVIDIA Corporation\NVIDIA app\UpdateFramework\ota-artifacts 
+成功清理路径：C:\Program Files (x86)\Microsoft\EdgeUpdate\Download 
+成功清理路径：C:\ProgramData\ContextMenuMgr 
+成功清理路径：C:\Users\Administrator\AppData\Roaming\Geek Uninstaller 
+正在读取规则文件：user.txt 
+成功清理路径：C:\Users\Public 
+成功清理路径：C:\Users\Administrator\AppData\Roaming\Adobe 
+清理操作完成. 
