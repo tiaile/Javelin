@@ -8,8 +8,8 @@ cd /d "%scriptDir%"
 
 rem 读取 config.ini 配置（默认记录不存在路径）
 set "LOG_NON_EXISTING=1"
-if exist config.ini (
-    for /f "tokens=2 delims==" %%a in ('type config.ini ^| findstr /i "LogNonExistingPaths"') do (
+if exist data\config.ini (
+    for /f "tokens=2 delims==" %%a in ('type data\config.ini ^| findstr /i "LogNonExistingPaths"') do (
         set "LOG_NON_EXISTING=%%a"
     )
 )
@@ -17,21 +17,24 @@ if exist config.ini (
 rem 定义存放规则文件的文件夹（可修改）
 set "ruleFolder=rules"
 
+rem 日志文件路径（放在 data 文件夹下）
+set "logFile=data\clean_log.txt"
+if not exist data\ mkdir data
+
 rem 检查规则文件夹是否存在
 if not exist "%ruleFolder%" (
-    echo 错误：规则文件夹 "%ruleFolder%" 不存在. >> clean_log.txt 2>&1
+    echo 错误：规则文件夹 "%ruleFolder%" 不存在. >> "%logFile%" 2>&1
     exit /b 1
 )
 
 rem 检查规则文件夹下是否有 txt 文件
 dir /b "%ruleFolder%\*.txt" >nul 2>nul
 if errorlevel 1 (
-    echo 错误：规则文件夹 "%ruleFolder%" 中没有找到任何 .txt 文件. >> clean_log.txt 2>&1
+    echo 错误：规则文件夹 "%ruleFolder%" 中没有找到任何 .txt 文件. >> "%logFile%" 2>&1
     exit /b 1
 )
 
 rem 创建或清空日志文件
-set "logFile=clean_log.txt"
 > "%logFile%" (
     echo 清理日志 - %date% %time%
     echo ========================

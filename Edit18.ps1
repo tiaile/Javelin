@@ -31,6 +31,8 @@ $script:currentFilePath = $null
 $script:fileData = @{}
 $script:editingTextBox = $null
 $script:allowTitleEdit = $false
+$script:whitelistTitles = @()
+$script:whitelistRules = @{}
 
 # 函数定义
 function LoadFileData($filePath) {
@@ -132,6 +134,88 @@ function SaveCurrentEdit {
     $script:editingTextBox = $null
 }
 
+# 白名单相关函数
+function GetWhitelistFilePath($ruleFilePath) {
+    if (-not $ruleFilePath) { return $null }
+    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($ruleFilePath)
+    $whitelistDir = Join-Path $scriptDir "whitelist"
+    if (-not (Test-Path $whitelistDir)) { $null = New-Item -Path $whitelistDir -ItemType Directory -Force }
+    return Join-Path $whitelistDir "${baseName}_whitelist.txt"
+}
+
+function LoadWhitelist($filePath) {
+    $script:whitelistTitles = @()
+    $script:whitelistRules = @{}
+    $whitelistPath = GetWhitelistFilePath $filePath
+    if (-not $whitelistPath -or -not (Test-Path $whitelistPath)) {
+        RefreshWhitelistTreeView
+        $script:whitelistView.Items.Clear()
+        return
+    }
+    $currentTitle = $null
+    $orphanRules = @()
+    $lines = Get-Content $whitelistPath -Encoding UTF8
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if ($trimmed -eq "") { continue }
+        if ($trimmed -match '^#') {
+            $currentTitle = $trimmed -replace '^#\s*', ''
+            if ($currentTitle -eq "") { $currentTitle = "空标题" }
+            if (-not $script:whitelistRules.ContainsKey($currentTitle)) {
+                $script:whitelistTitles += $currentTitle
+                $script:whitelistRules[$currentTitle] = [System.Collections.ArrayList]::new()
+            }
+        } else {
+            if ($currentTitle) { $script:whitelistRules[$currentTitle].Add($line) }
+            else { $orphanRules += $line }
+        }
+    }
+    if ($script:whitelistTitles.Count -eq 0 -and $orphanRules.Count -gt 0) {
+        $script:whitelistTitles = @("未分类")
+        $script:whitelistRules["未分类"] = [System.Collections.ArrayList]::new($orphanRules)
+    } elseif ($orphanRules.Count -gt 0) {
+        $script:whitelistRules[$script:whitelistTitles[0]].AddRange($orphanRules)
+    }
+    RefreshWhitelistTreeView
+    if ($script:whitelistTitles.Count -gt 0) {
+        $script:whitelistTreeView.SelectedNode = $script:whitelistTreeView.Nodes[0]
+        RefreshWhitelistRuleList
+    } else { $script:whitelistView.Items.Clear() }
+}
+
+function SaveWhitelist($filePath) {
+    $whitelistPath = GetWhitelistFilePath $filePath
+    if (-not $whitelistPath) { return }
+    $output = @()
+    foreach ($title in $script:whitelistTitles) {
+        $output += "# $title"
+        foreach ($rule in $script:whitelistRules[$title]) { $output += $rule }
+        $output += ""
+    }
+    while ($output.Count -gt 0 -and $output[-1] -eq "") { $output = $output[0..($output.Count-2)] }
+    $output | Out-File -FilePath $whitelistPath -Encoding UTF8 -Force
+}
+
+function RefreshWhitelistTreeView {
+    $script:whitelistTreeView.Nodes.Clear()
+    foreach ($title in $script:whitelistTitles) {
+        $node = New-Object System.Windows.Forms.TreeNode($title)
+        $node.Tag = $title
+        $script:whitelistTreeView.Nodes.Add($node)
+    }
+}
+
+function RefreshWhitelistRuleList {
+    $script:whitelistView.Items.Clear()
+    if (-not $script:whitelistTreeView.SelectedNode) { return }
+    $currentTitle = $script:whitelistTreeView.SelectedNode.Tag
+    if ($script:whitelistRules.ContainsKey($currentTitle)) {
+        foreach ($rule in $script:whitelistRules[$currentTitle]) {
+            $null = $script:whitelistView.Items.Add($rule)
+        }
+    }
+}
+
 # 创建窗体
 $form = New-Object System.Windows.Forms.Form
 $form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
@@ -149,14 +233,23 @@ $form.Add_FormClosing({
 })
 
 # 左侧文件列表
+$labelRuleFiles = New-Object System.Windows.Forms.Label
+$labelRuleFiles.Text = "规则文件"
+$labelRuleFiles.BackColor = [System.Drawing.SystemColors]::Control
+$labelRuleFiles.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$labelRuleFiles.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+$labelRuleFiles.Font = [System.Drawing.Font]::new("Segoe UI", 9)
+$labelRuleFiles.Location = New-Object System.Drawing.Point(10, 10)
+$labelRuleFiles.Size = New-Object System.Drawing.Size(250, 22)
+
 $fileListView = New-Object System.Windows.Forms.ListView
-$fileListView.Location = New-Object System.Drawing.Point(10, 10)
-$fileListView.Size = New-Object System.Drawing.Size(250, 600)
-$fileListView.View = [System.Windows.Forms.View]::Details
+$fileListView.Location = New-Object System.Drawing.Point(10, 32)
+$fileListView.Size = New-Object System.Drawing.Size(250, 578)
+$fileListView.View = [System.Windows.Forms.View]::List
 $fileListView.FullRowSelect = $true
-$fileListView.GridLines = $true
+$fileListView.HideSelection = $false
+$fileListView.OwnerDraw = $true
 $fileListView.MultiSelect = $false
-$fileListView.Columns.Add("规则文件", 230)
 $fileListView.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
 
 $txtFiles = Get-ChildItem -Path $rulesDir -Filter "*.txt" -File
@@ -174,6 +267,24 @@ $fileListView.Add_SelectedIndexChanged({
     $script:currentFilePath = $newPath
     $null = LoadFileData $script:currentFilePath
     RefreshTreeView
+    LoadWhitelist $script:currentFilePath
+})
+
+# 确保文件列表选中项在失去焦点时仍保持明显高亮
+$fileListView.Add_DrawColumnHeader({
+    $_.DrawDefault = $true
+})
+
+$fileListView.Add_DrawItem({
+    $e = $_
+    if ($e.Item.Selected) {
+        $e.DrawDefault = $false
+        # 不论控件是否拥有焦点，始终使用鲜明蓝色保持高亮可见
+        $e.Graphics.FillRectangle([System.Drawing.SolidBrush]::new([System.Drawing.Color]::SteelBlue), $e.Bounds)
+        $e.Graphics.DrawString($e.Item.Text, $fileListView.Font, [System.Drawing.SolidBrush]::new([System.Drawing.SystemColors]::HighlightText), $e.Bounds.X + 2, $e.Bounds.Y + 1)
+    } else {
+        $e.DrawDefault = $true
+    }
 })
 
 # ---------- 左侧文件列表右键菜单：删除规则文件 ----------
@@ -213,11 +324,20 @@ $deleteFileMenuItem.Add_Click({
 $fileContextMenu.Items.Add($deleteFileMenuItem)
 $fileListView.ContextMenuStrip = $fileContextMenu
 
-# 中间标题树
+# 中间标题树 — 标签
+$labelTags = New-Object System.Windows.Forms.Label
+$labelTags.Text = "标签"
+$labelTags.BackColor = [System.Drawing.SystemColors]::Control
+$labelTags.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$labelTags.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+$labelTags.Font = [System.Drawing.Font]::new("Segoe UI", 9)
+$labelTags.Location = New-Object System.Drawing.Point(270, 10)
+$labelTags.Size = New-Object System.Drawing.Size(250, 22)
+
 $treeView = New-Object System.Windows.Forms.TreeView
 $treeView.Font = [System.Drawing.Font]::new("Segoe UI", 9)
-$treeView.Location = New-Object System.Drawing.Point(270, 10)
-$treeView.Size = New-Object System.Drawing.Size(250, 600)
+$treeView.Location = New-Object System.Drawing.Point(270, 32)
+$treeView.Size = New-Object System.Drawing.Size(250, 368)
 $treeView.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
 $treeView.FullRowSelect = $true
 $treeView.HideSelection = $false
@@ -271,12 +391,137 @@ $treeView.Add_AfterSelect({
 $listView = New-Object System.Windows.Forms.ListView
 $listView.Location = New-Object System.Drawing.Point(530, 10)
 $listView.Font = [System.Drawing.Font]::new("Segoe UI", 9)
-$listView.Size = New-Object System.Drawing.Size(650, 600)
+$listView.Size = New-Object System.Drawing.Size(650, 390)
 $listView.View = [System.Windows.Forms.View]::Details
 $listView.FullRowSelect = $true
 $listView.GridLines = $true
 $listView.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
 $listView.Columns.Add("规则内容", 640)
+
+# ---------- 白名单列表 ----------
+$script:whitelistView = New-Object System.Windows.Forms.ListView
+$script:whitelistView.Location = New-Object System.Drawing.Point(530, 405)
+$script:whitelistView.Font = [System.Drawing.Font]::new("Segoe UI", 9)
+$script:whitelistView.Size = New-Object System.Drawing.Size(650, 190)
+$script:whitelistView.View = [System.Windows.Forms.View]::Details
+$script:whitelistView.FullRowSelect = $true
+$script:whitelistView.GridLines = $true
+$script:whitelistView.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+$script:whitelistView.Columns.Add("白名单规则", 640)
+
+# 白名单右键菜单 — 添加新规则 + 删除规则 + 刷新
+$whitelistContextMenu = New-Object System.Windows.Forms.ContextMenuStrip
+
+$addWhitelistRuleMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$addWhitelistRuleMenuItem.Text = "添加新规则"
+$addWhitelistRuleMenuItem.Add_Click({
+    if (-not $script:whitelistTreeView.SelectedNode) {
+        [System.Windows.Forms.MessageBox]::Show("请先选中白名单中的标签", "提示")
+        return
+    }
+    $currentTitle = $script:whitelistTreeView.SelectedNode.Tag
+    $inputForm = New-Object System.Windows.Forms.Form
+    $inputForm.Text = "添加新规则到白名单"
+    $inputForm.Size = New-Object System.Drawing.Size(700, 220)
+    $inputForm.StartPosition = "CenterParent"
+    $inputForm.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $inputForm.MaximizeBox = $false
+    $inputForm.MinimizeBox = $false
+    $label = New-Object System.Windows.Forms.Label -Property @{Text="路径："; Location='10,15'; Size='70,20'}
+    $textBox = New-Object System.Windows.Forms.TextBox -Property @{
+        Location='80,12'
+        Size='590,60'
+        Multiline=$true
+        WordWrap=$true
+        ScrollBars='Vertical'
+        Font=[System.Drawing.Font]::new("Consolas", 11)
+    }
+    $btnProgram = New-Object System.Windows.Forms.Button -Property @{Text="Program"; Location='100,85'; Size='90,25'}
+    $btnWindows = New-Object System.Windows.Forms.Button -Property @{Text="Windows"; Location='200,85'; Size='90,25'}
+    $btnLocal = New-Object System.Windows.Forms.Button -Property @{Text="Local"; Location='300,85'; Size='90,25'}
+    $btnRoaming = New-Object System.Windows.Forms.Button -Property @{Text="Roaming"; Location='400,85'; Size='90,25'}
+    $insertText = {
+        param($textToInsert)
+        $tb = $textBox
+        if ($tb.SelectionLength -gt 0) { $tb.SelectedText = $textToInsert }
+        else {
+            $tb.Text = $tb.Text.Insert($tb.SelectionStart, $textToInsert)
+            $tb.SelectionStart = $tb.SelectionStart + $textToInsert.Length
+        }
+        $tb.Focus()
+    }
+    $btnProgram.Add_Click({ & $insertText "%PROGRAMDATA%\" })
+    $btnWindows.Add_Click({ & $insertText "%SystemRoot%\" })
+    $btnLocal.Add_Click({ & $insertText "%LOCALAPPDATA%\" })
+    $btnRoaming.Add_Click({ & $insertText "%APPDATA%\" })
+    $btnOk = New-Object System.Windows.Forms.Button -Property @{Text="确定"; Location='230,125'; Size='80,30'; DialogResult='OK'}
+    $btnCancel = New-Object System.Windows.Forms.Button -Property @{Text="取消"; Location='330,125'; Size='80,30'; DialogResult='Cancel'}
+    $inputForm.Controls.AddRange(@($label, $textBox, $btnProgram, $btnWindows, $btnLocal, $btnRoaming, $btnOk, $btnCancel))
+    if ($inputForm.ShowDialog() -eq 'OK') {
+        $newRule = $textBox.Text.Trim()
+        if ($newRule -ne "") {
+            [void]$script:whitelistRules[$currentTitle].Add($newRule)
+            if ($script:currentFilePath) { SaveWhitelist $script:currentFilePath }
+            RefreshWhitelistRuleList
+        }
+    }
+    $inputForm.Dispose()
+})
+$whitelistContextMenu.Items.Add($addWhitelistRuleMenuItem)
+
+$deleteWhitelistRuleMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$deleteWhitelistRuleMenuItem.Text = "删除规则"
+$deleteWhitelistRuleMenuItem.Add_Click({
+    if ($script:whitelistView.SelectedItems.Count -eq 0) {
+        [System.Windows.Forms.MessageBox]::Show("请先选中要删除的规则", "提示")
+        return
+    }
+    if (-not $script:whitelistTreeView.SelectedNode) {
+        [System.Windows.Forms.MessageBox]::Show("请先选中白名单中的标签", "提示")
+        return
+    }
+    $currentTitle = $script:whitelistTreeView.SelectedNode.Tag
+    $result = [System.Windows.Forms.MessageBox]::Show("确定删除选中的规则吗？", "确认", 'YesNo', 'Question')
+    if ($result -eq 'Yes') {
+        $selectedIndices = @()
+        foreach ($item in $script:whitelistView.SelectedItems) {
+            $selectedIndices += $script:whitelistView.Items.IndexOf($item)
+        }
+        $selectedIndices | Sort-Object -Descending | ForEach-Object {
+            if ($_ -ge 0 -and $_ -lt $script:whitelistRules[$currentTitle].Count) {
+                $script:whitelistRules[$currentTitle].RemoveAt($_)
+            }
+        }
+        if ($script:currentFilePath) { SaveWhitelist $script:currentFilePath }
+        RefreshWhitelistRuleList
+    }
+})
+$whitelistContextMenu.Items.Add($deleteWhitelistRuleMenuItem)
+
+# 分隔线
+$whitelistContextMenu.Items.Add([System.Windows.Forms.ToolStripSeparator]::new())
+
+$refreshWhitelistMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$refreshWhitelistMenuItem.Text = "刷新"
+$refreshWhitelistMenuItem.Add_Click({
+    if ($script:editingTextBox -and -not $script:editingTextBox.IsDisposed) { SaveCurrentEdit }
+    if (-not $script:currentFilePath) { return }
+    # 记录刷新前选中的白名单标签
+    $oldTitle = if ($script:whitelistTreeView.SelectedNode) { $script:whitelistTreeView.SelectedNode.Tag } else { $null }
+    LoadWhitelist $script:currentFilePath
+    # 恢复之前选中的白名单标签
+    if ($oldTitle -and $script:whitelistTreeView.Nodes.Count -gt 0) {
+        $foundNode = $null
+        foreach ($node in $script:whitelistTreeView.Nodes) {
+            if ($node.Tag -eq $oldTitle) { $foundNode = $node; break }
+        }
+        if ($foundNode) { $script:whitelistTreeView.SelectedNode = $foundNode }
+        elseif ($script:whitelistTreeView.Nodes.Count -gt 0) { $script:whitelistTreeView.SelectedNode = $script:whitelistTreeView.Nodes[0] }
+    }
+})
+$whitelistContextMenu.Items.Add($refreshWhitelistMenuItem)
+
+$script:whitelistView.ContextMenuStrip = $whitelistContextMenu
 
 # 右键菜单
 $contextMenu = New-Object System.Windows.Forms.ContextMenuStrip
@@ -525,7 +770,116 @@ $deleteTitleMenuItem.Add_Click({
 })
 $treeViewContextMenu.Items.Add($deleteTitleMenuItem)
 
+# 分隔线
+$treeViewContextMenu.Items.Add([System.Windows.Forms.ToolStripSeparator]::new())
+
+# 移动到白名单
+$moveToWhitelistMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$moveToWhitelistMenuItem.Text = "移动到白名单"
+$moveToWhitelistMenuItem.Add_Click({
+    $node = $treeView.SelectedNode
+    if (-not $node) { return }
+    if (-not $script:currentFilePath) { return }
+    $titleToMove = $node.Tag
+    if ($titleToMove -eq "未分类") {
+        [System.Windows.Forms.MessageBox]::Show('不能移动"未分类"标签', "提示")
+        return
+    }
+    $data = $script:fileData[$script:currentFilePath]
+    if (-not $data.titleRules.ContainsKey($titleToMove)) { return }
+    $rules = $data.titleRules[$titleToMove]
+    if ($rules.Count -eq 0) {
+        [System.Windows.Forms.MessageBox]::Show('该标签下没有规则可移动', "提示")
+        return
+    }
+    $msg = '确定将标签 "' + $titleToMove + '" 及其所有规则移动到白名单吗？'
+    $result = [System.Windows.Forms.MessageBox]::Show($msg, "确认", 'YesNo', 'Question')
+    if ($result -eq 'Yes') {
+        # 将标签和规则加入白名单
+        if (-not $script:whitelistRules.ContainsKey($titleToMove)) {
+            $script:whitelistTitles += $titleToMove
+            $script:whitelistRules[$titleToMove] = [System.Collections.ArrayList]::new()
+        }
+        foreach ($rule in $rules) {
+            [void]$script:whitelistRules[$titleToMove].Add($rule)
+        }
+        # 从原文件中删除该标签及其所有规则
+        $data.titleRules.Remove($titleToMove)
+        $data.titles = @($data.titles | Where-Object { $_ -ne $titleToMove })
+        $treeView.Nodes.Remove($node)
+        if ($treeView.Nodes.Count -gt 0) {
+            $treeView.SelectedNode = $treeView.Nodes[0]
+        } else { $listView.Items.Clear() }
+        # 保存白名单，刷新两边视图
+        if ($script:currentFilePath) { SaveWhitelist $script:currentFilePath }
+        RefreshWhitelistTreeView
+        if ($script:whitelistTitles.Count -gt 0) {
+            $script:whitelistTreeView.SelectedNode = $script:whitelistTreeView.Nodes[$script:whitelistTreeView.Nodes.Count-1]
+            RefreshWhitelistRuleList
+        }
+        RefreshRuleList
+        [System.Windows.Forms.MessageBox]::Show('已移动到白名单，请保存规则文件生效', "完成", 'OK', 'Information')
+    }
+})
+$treeViewContextMenu.Items.Add($moveToWhitelistMenuItem)
+
 $treeView.ContextMenuStrip = $treeViewContextMenu
+
+# ---------- 白名单标签树 ----------
+$whitelistTreeLabel = New-Object System.Windows.Forms.Label
+$whitelistTreeLabel.Text = "白名单"
+$whitelistTreeLabel.BackColor = [System.Drawing.SystemColors]::Control
+$whitelistTreeLabel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$whitelistTreeLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+$whitelistTreeLabel.Font = [System.Drawing.Font]::new("Segoe UI", 9)
+$whitelistTreeLabel.Location = New-Object System.Drawing.Point(270, 405)
+$whitelistTreeLabel.Size = New-Object System.Drawing.Size(250, 22)
+$whitelistTreeLabel.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+
+$script:whitelistTreeView = New-Object System.Windows.Forms.TreeView
+$script:whitelistTreeView.Font = [System.Drawing.Font]::new("Segoe UI", 9)
+$script:whitelistTreeView.Location = New-Object System.Drawing.Point(270, 427)
+$script:whitelistTreeView.Size = New-Object System.Drawing.Size(250, 168)
+$script:whitelistTreeView.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+$script:whitelistTreeView.FullRowSelect = $true
+$script:whitelistTreeView.HideSelection = $false
+
+$script:whitelistTreeView.Add_AfterSelect({
+    if ($script:editingTextBox -and -not $script:editingTextBox.IsDisposed) { SaveCurrentEdit }
+    RefreshWhitelistRuleList
+})
+
+$script:whitelistTreeView.Add_MouseDown({
+    if ($script:editingTextBox) { SaveCurrentEdit }
+    if ($_.Button -eq 'Right') {
+        $hit = $script:whitelistTreeView.HitTest([System.Drawing.Point]::new($_.X, $_.Y))
+        if ($hit.Node) { $script:whitelistTreeView.SelectedNode = $hit.Node }
+    }
+})
+
+# 白名单标签右键菜单
+$whitelistTreeContextMenu = New-Object System.Windows.Forms.ContextMenuStrip
+$removeWhitelistTitleMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$removeWhitelistTitleMenuItem.Text = "删除白名单标签"
+$removeWhitelistTitleMenuItem.Add_Click({
+    $node = $script:whitelistTreeView.SelectedNode
+    if (-not $node) { return }
+    $titleToDelete = $node.Tag
+    $msg = '确定删除白名单标签 "' + $titleToDelete + '" 及其所有规则吗？'
+    $result = [System.Windows.Forms.MessageBox]::Show($msg, "确认", 'YesNo', 'Warning')
+    if ($result -eq 'Yes') {
+        $script:whitelistRules.Remove($titleToDelete)
+        $script:whitelistTitles = @($script:whitelistTitles | Where-Object { $_ -ne $titleToDelete })
+        $script:whitelistTreeView.Nodes.Remove($node)
+        if ($script:whitelistTitles.Count -gt 0) {
+            $script:whitelistTreeView.SelectedNode = $script:whitelistTreeView.Nodes[0]
+        }
+        RefreshWhitelistRuleList
+        if ($script:currentFilePath) { SaveWhitelist $script:currentFilePath }
+    }
+})
+$whitelistTreeContextMenu.Items.Add($removeWhitelistTitleMenuItem)
+$script:whitelistTreeView.ContextMenuStrip = $whitelistTreeContextMenu
 
 # 按钮
 $btnAddTitle = New-Object System.Windows.Forms.Button
@@ -576,7 +930,7 @@ $btnExec.Add_Click({
     try {
         $proc = Start-Process -FilePath $batPath -Verb RunAs -WindowStyle Hidden -Wait -PassThru
         if ($proc.ExitCode -eq 0) {
-            [System.Windows.Forms.MessageBox]::Show("执行完成！查看 clean_log.txt", "完成", 'OK', 'Information')
+            [System.Windows.Forms.MessageBox]::Show("执行完成！查看 data\clean_log.txt", "完成", 'OK', 'Information')
         } else {
             [System.Windows.Forms.MessageBox]::Show("执行失败，退出码 $($proc.ExitCode)", "错误", 'OK', 'Error')
         }
@@ -586,7 +940,7 @@ $btnExec.Add_Click({
 })
 
 # ---------- 设置按钮（纯符号，无图标） ----------
-$configPath = Join-Path $scriptDir "config.ini"
+$configPath = Join-Path $scriptDir "data\config.ini"
 $currentLogSetting = 1
 if (Test-Path $configPath) {
     $configContent = Get-Content $configPath -Raw -ErrorAction SilentlyContinue
@@ -614,7 +968,7 @@ if (Test-Path $imagePath) {
 $btnSettings.Add_Click({
     $settingsForm = New-Object System.Windows.Forms.Form
     $settingsForm.Text = "设置"
-    $settingsForm.Size = New-Object System.Drawing.Size(400, 250)   # 高度从180增加到250
+    $settingsForm.Size = New-Object System.Drawing.Size(540, 500)
     $settingsForm.StartPosition = "CenterParent"
     $settingsForm.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
     $settingsForm.MaximizeBox = $false
@@ -622,14 +976,14 @@ $btnSettings.Add_Click({
 
     # 软件名称和版本信息
     $lblAbout = New-Object System.Windows.Forms.Label
-    $lblAbout.Text = "软件名称：标枪           版本：0.18"
+    $lblAbout.Text = "软件名称：标枪           版本：0.22"
     $lblAbout.Location = New-Object System.Drawing.Point(20, 15)
-    $lblAbout.Size = New-Object System.Drawing.Size(350, 25)
+    $lblAbout.Size = New-Object System.Drawing.Size(370, 25)
     $lblAbout.Font = [System.Drawing.Font]::new("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
     $lblAbout.ForeColor = [System.Drawing.Color]::DarkBlue
 
     $checkBox = New-Object System.Windows.Forms.CheckBox
-    $checkBox.Text = '记录“路径不存在”日志'
+    $checkBox.Text = '记录"路径不存在"日志'
     $checkBox.Location = New-Object System.Drawing.Point(20, 50)
     $checkBox.Size = New-Object System.Drawing.Size(300, 30)
     $checkBox.Checked = ($currentLogSetting -eq 1)
@@ -637,23 +991,79 @@ $btnSettings.Add_Click({
     $labelNote = New-Object System.Windows.Forms.Label
     $labelNote.Text = '关闭此选项后，clean.bat 将不会在日志中写入不存在的路径信息。'
     $labelNote.Location = New-Object System.Drawing.Point(20, 80)
-    $labelNote.Size = New-Object System.Drawing.Size(350, 40)
+    $labelNote.Size = New-Object System.Drawing.Size(370, 40)
     $labelNote.ForeColor = [System.Drawing.Color]::Gray
     $labelNote.Font = [System.Drawing.Font]::new("Segoe UI", 8)
 
     $btnOK = New-Object System.Windows.Forms.Button
     $btnOK.Text = "确定"
-    $btnOK.Location = New-Object System.Drawing.Point(180, 140)   # 下移10像素
+    $btnOK.Location = New-Object System.Drawing.Point(300, 420)
     $btnOK.Size = New-Object System.Drawing.Size(80, 30)
     $btnOK.DialogResult = [System.Windows.Forms.DialogResult]::OK
 
     $btnCancel = New-Object System.Windows.Forms.Button
     $btnCancel.Text = "取消"
-    $btnCancel.Location = New-Object System.Drawing.Point(280, 140)
+    $btnCancel.Location = New-Object System.Drawing.Point(400, 420)
     $btnCancel.Size = New-Object System.Drawing.Size(80, 30)
     $btnCancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
 
-    $settingsForm.Controls.AddRange(@($lblAbout, $checkBox, $labelNote, $btnOK, $btnCancel))
+    # 说明按钮
+    $btnHelp = New-Object System.Windows.Forms.Button
+    $btnHelp.Text = "说明"
+    $btnHelp.Location = New-Object System.Drawing.Point(20, 420)
+    $btnHelp.Size = New-Object System.Drawing.Size(80, 30)
+
+    # 阅读说明的控件（初始隐藏）
+    $txtReadme = New-Object System.Windows.Forms.TextBox
+    $txtReadme.Multiline = $true
+    $txtReadme.ReadOnly = $true
+    $txtReadme.ScrollBars = [System.Windows.Forms.ScrollBars]::Both
+    $txtReadme.WordWrap = $false
+    $txtReadme.Font = [System.Drawing.Font]::new("Consolas", 9)
+    $txtReadme.Location = New-Object System.Drawing.Point(12, 12)
+    $txtReadme.Size = New-Object System.Drawing.Size(500, 410)
+    $txtReadme.Visible = $false
+    # 加载 data\readme.txt 内容（UTF-8）
+    $readmePath = Join-Path $scriptDir "data\readme.txt"
+    if (Test-Path $readmePath) {
+        $txtReadme.Text = Get-Content $readmePath -Raw -Encoding UTF8
+    } else {
+        $txtReadme.Text = "（未找到 data\readme.txt）"
+    }
+
+    $btnBack = New-Object System.Windows.Forms.Button
+    $btnBack.Text = "返回"
+    $btnBack.Location = New-Object System.Drawing.Point(230, 420)
+    $btnBack.Size = New-Object System.Drawing.Size(80, 30)
+    $btnBack.Visible = $false
+
+    # 说明按钮点击：切换到说明视图
+    $btnHelp.Add_Click({
+        $settingsForm.Text = "说明"
+        $lblAbout.Visible = $false
+        $checkBox.Visible = $false
+        $labelNote.Visible = $false
+        $btnOK.Visible = $false
+        $btnCancel.Visible = $false
+        $btnHelp.Visible = $false
+        $txtReadme.Visible = $true
+        $btnBack.Visible = $true
+    })
+
+    # 返回按钮点击：回到设置视图
+    $btnBack.Add_Click({
+        $settingsForm.Text = "设置"
+        $txtReadme.Visible = $false
+        $btnBack.Visible = $false
+        $lblAbout.Visible = $true
+        $checkBox.Visible = $true
+        $labelNote.Visible = $true
+        $btnOK.Visible = $true
+        $btnCancel.Visible = $true
+        $btnHelp.Visible = $true
+    })
+
+    $settingsForm.Controls.AddRange(@($lblAbout, $checkBox, $labelNote, $btnOK, $btnCancel, $btnHelp, $txtReadme, $btnBack))
 
     if ($settingsForm.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         $newValue = if ($checkBox.Checked) { 1 } else { 0 }
@@ -681,6 +1091,7 @@ $btnSave.Size = New-Object System.Drawing.Size(90, 30)
 $btnSave.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
 $btnSave.Add_Click({
     SaveCurrentFile
+    if ($script:currentFilePath) { SaveWhitelist $script:currentFilePath }
     [System.Windows.Forms.MessageBox]::Show("保存成功！", "完成", 'OK', 'Information')
 })
 
@@ -691,7 +1102,7 @@ $btnClose.Size = New-Object System.Drawing.Size(80, 30)
 $btnClose.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
 $btnClose.Add_Click({ $form.Close() })
 
-$form.Controls.AddRange(@($fileListView, $treeView, $listView, $btnAddTitle, $btnExec, $btnSettings, $btnSave, $btnClose))
+$form.Controls.AddRange(@($labelRuleFiles, $fileListView, $labelTags, $treeView, $whitelistTreeLabel, $script:whitelistTreeView, $listView, $script:whitelistView, $btnAddTitle, $btnExec, $btnSettings, $btnSave, $btnClose))
 
 if ($fileListView.Items.Count -gt 0) {
     $fileListView.Items[0].Selected = $true
